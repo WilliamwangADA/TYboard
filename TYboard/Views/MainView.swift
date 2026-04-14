@@ -3,17 +3,17 @@ import SwiftUI
 struct MainView: View {
     @State private var canvasState = CanvasState()
     @State private var chatState = ChatState()
+    @State private var generationEngine = GenerationEngine()
 
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
                 HStack(spacing: 0) {
-                    // Canvas area (2/3 or full width)
+                    // Canvas area
                     ZStack(alignment: .bottom) {
                         InfiniteCanvasView(state: canvasState)
 
                         ChatInputBar(state: chatState) {
-                            // Capture canvas drawing and attach to chat
                             chatState.attachCanvasSnapshot(canvasState.drawing)
                         }
                         .padding(.horizontal, 16)
@@ -21,13 +21,16 @@ struct MainView: View {
                     }
                     .frame(width: canvasWidth(in: geometry))
 
-                    // Preview area (1/3, collapsible)
+                    // Preview area
                     if canvasState.isPreviewVisible {
                         Divider()
 
-                        PreviewPanel(canvasState: canvasState)
-                            .frame(width: previewWidth(in: geometry))
-                            .transition(.move(edge: .trailing))
+                        PreviewPanel(
+                            canvasState: canvasState,
+                            generationEngine: generationEngine
+                        )
+                        .frame(width: previewWidth(in: geometry))
+                        .transition(.move(edge: .trailing))
                     }
                 }
             }
@@ -36,11 +39,17 @@ struct MainView: View {
                 ToolbarItemGroup(placement: .topBarLeading) {
                     Text("TYboard")
                         .font(.headline)
-                        .foregroundStyle(.primary)
                 }
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    // API Key settings
+                    // Generate button
+                    Button {
+                        triggerGeneration()
+                    } label: {
+                        Label("生成", systemImage: "wand.and.stars")
+                    }
+                    .disabled(generationEngine.isGenerating)
+
                     Button {
                         chatState.showAPIKeyAlert = true
                     } label: {
@@ -70,6 +79,10 @@ struct MainView: View {
             } message: {
                 Text("请输入你的Claude API Key")
             }
+            // Auto-detect generated code in chat responses
+            .onChange(of: chatState.messages.count) {
+                checkForGeneratedCode()
+            }
         }
     }
 
@@ -82,5 +95,47 @@ struct MainView: View {
 
     private func previewWidth(in geometry: GeometryProxy) -> CGFloat {
         geometry.size.width * canvasState.previewWidthRatio
+    }
+
+    /// Trigger generation from current canvas + latest chat
+    private func triggerGeneration() {
+        let latestPrompt = chatState.messages
+            .last(where: { $0.role == .user })?.content ?? ""
+
+        Task {
+            await generationEngine.generate(
+                description: latestPrompt,
+                drawing: canvasState.drawing,
+                previousHTML: generationEngine.generatedHTML
+            )
+            // Auto-show preview
+            if !canvasState.isPreviewVisible {
+                canvasState.togglePreview()
+            }
+        }
+    }
+
+    /// Check if the latest AI response contains HTML code
+    private func checkForGeneratedCode() {
+        guard let lastMessage = chatState.messages.last,
+              lastMessage.role == .assistant,
+              !lastMessage.isStreaming else { return }
+
+        if let html = CodeExtractor.extractHTML(from: lastMessage.content) {
+            generationEngine.generatedHTML = html
+            generationEngine.currentVersion += 1
+            generationEngine.generationHistory.append(
+                GenerationEngine.GenerationSnapshot(
+                    version: generationEngine.currentVersion,
+                    html: html,
+                    prompt: chatState.messages.last(where: { $0.role == .user })?.content ?? "",
+                    timestamp: Date()
+                )
+            )
+
+            if !canvasState.isPreviewVisible {
+                canvasState.togglePreview()
+            }
+        }
     }
 }
