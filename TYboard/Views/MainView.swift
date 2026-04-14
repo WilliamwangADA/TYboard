@@ -1,0 +1,61 @@
+import SwiftUI
+
+struct MainView: View {
+    @State private var canvasState = CanvasState()
+    @State private var chatState = ChatState()
+
+    var body: some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                // Canvas area (2/3 or full width)
+                ZStack(alignment: .bottom) {
+                    InfiniteCanvasView(state: canvasState)
+
+                    ChatInputBar(state: chatState)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                }
+                .frame(width: canvasWidth(in: geometry))
+
+                // Preview area (1/3, collapsible)
+                if canvasState.isPreviewVisible {
+                    Divider()
+
+                    PreviewPanel(canvasState: canvasState)
+                        .frame(width: previewWidth(in: geometry))
+                        .transition(.move(edge: .trailing))
+                }
+            }
+        }
+        .ignoresSafeArea(.keyboard)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    canvasState.togglePreview()
+                } label: {
+                    Image(systemName: canvasState.isPreviewVisible
+                          ? "sidebar.right"
+                          : "sidebar.right")
+                        .symbolVariant(canvasState.isPreviewVisible ? .none : .slash)
+                }
+
+                Button {
+                    canvasState.resetView()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                }
+            }
+        }
+    }
+
+    private func canvasWidth(in geometry: GeometryProxy) -> CGFloat {
+        if canvasState.isPreviewVisible {
+            return geometry.size.width * (1 - canvasState.previewWidthRatio)
+        }
+        return geometry.size.width
+    }
+
+    private func previewWidth(in geometry: GeometryProxy) -> CGFloat {
+        geometry.size.width * canvasState.previewWidthRatio
+    }
+}
