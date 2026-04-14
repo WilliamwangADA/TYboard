@@ -23,3 +23,6 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
         SWIFT_STRICT_CONCURRENCY: complete
         GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "TYboard需要语音识别权限来支持语音输入"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "TYboard需要麦克风权限来录制语音"
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "TYboard需要相册权限来导入素材"

@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ChatInputBar: View {
     @Bindable var state: ChatState
+    var onCaptureCanvas: (() -> Void)?
+
+    @State private var speechRecognizer = SpeechRecognizer()
+    @State private var showPhotoPicker = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,10 +24,32 @@ struct ChatInputBar: View {
                     .frame(maxHeight: 300)
                     .onChange(of: state.messages.count) {
                         if let last = state.messages.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
+                            withAnimation {
+                                proxy.scrollTo(last.id, anchor: .bottom)
+                            }
                         }
                     }
                 }
+            }
+
+            // Pending image preview
+            if state.pendingImageData != nil {
+                HStack {
+                    Image(systemName: "photo.fill")
+                        .foregroundStyle(.blue)
+                    Text("已附加画布截图")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        state.pendingImageData = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
             }
 
             // Input area
@@ -39,14 +65,28 @@ struct ChatInputBar: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Canvas capture button
+                Button {
+                    onCaptureCanvas?()
+                } label: {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.title3)
+                        .foregroundStyle(state.pendingImageData != nil ? .blue : .secondary)
+                }
+
                 // Attachment button
                 Button {
-                    // TODO: Phase 2 - File/image picker
+                    showPhotoPicker = true
                 } label: {
                     Image(systemName: "plus.circle")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
+                .photosPicker(
+                    isPresented: $showPhotoPicker,
+                    selection: .constant(nil),
+                    matching: .images
+                )
 
                 // Text input
                 TextField("描述你想要创建的内容...", text: $state.inputText, axis: .vertical)
@@ -58,11 +98,19 @@ struct ChatInputBar: View {
 
                 // Voice input button
                 Button {
-                    // TODO: Phase 2 - Voice input
+                    if speechRecognizer.isRecording {
+                        speechRecognizer.stopRecording()
+                        if !speechRecognizer.transcript.isEmpty {
+                            state.inputText += speechRecognizer.transcript
+                        }
+                    } else {
+                        speechRecognizer.startRecording()
+                    }
                 } label: {
-                    Image(systemName: "mic.circle")
+                    Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic.circle")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(speechRecognizer.isRecording ? .red : .secondary)
+                        .symbolEffect(.pulse, isActive: speechRecognizer.isRecording)
                 }
 
                 // Send button
@@ -71,19 +119,20 @@ struct ChatInputBar: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(
-                            state.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? Color.secondary
-                            : Color.accentColor
-                        )
+                        .foregroundStyle(canSend ? Color.accentColor : .secondary)
                 }
-                .disabled(state.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!canSend || state.isLoading)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+    }
+
+    private var canSend: Bool {
+        !state.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        || state.pendingImageData != nil
     }
 }
 
@@ -94,17 +143,34 @@ struct MessageBubble: View {
         HStack {
             if message.role == .user { Spacer(minLength: 60) }
 
-            Text(message.content)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    message.role == .user
-                    ? Color.accentColor.opacity(0.15)
-                    : Color.secondary.opacity(0.1),
-                    in: RoundedRectangle(cornerRadius: 16)
-                )
-                .foregroundStyle(.primary)
-                .font(.body)
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
+                // Image attachment indicator
+                if message.imageData != nil {
+                    HStack(spacing: 4) {
+                        Image(systemName: "photo")
+                        Text("附件图片")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+
+                Text(message.content)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        message.role == .user
+                        ? Color.accentColor.opacity(0.15)
+                        : Color.secondary.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 16)
+                    )
+                    .foregroundStyle(.primary)
+                    .font(.body)
+
+                if message.isStreaming {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                }
+            }
 
             if message.role == .assistant { Spacer(minLength: 60) }
         }
