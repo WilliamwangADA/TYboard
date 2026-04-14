@@ -8,6 +8,41 @@ final class CanvasState {
     var drawing: PKDrawing = PKDrawing()
     var isPreviewVisible: Bool = true
     var previewWidthRatio: CGFloat = 1.0 / 3.0
+    var canvasBackground: CanvasBackground = .grid
+
+    enum CanvasBackground: String, CaseIterable {
+        case white = "全白"
+        case grid = "网格"
+        case dots = "点阵"
+        case blackboard = "黑板"
+
+        var bgColor: UIColor {
+            switch self {
+            case .white: .systemBackground
+            case .grid: .systemBackground
+            case .dots: .systemBackground
+            case .blackboard: UIColor(red: 0.15, green: 0.2, blue: 0.15, alpha: 1.0)
+            }
+        }
+
+        var lineColor: UIColor {
+            switch self {
+            case .white: .clear
+            case .grid: .separator.withAlphaComponent(0.3)
+            case .dots: .separator.withAlphaComponent(0.4)
+            case .blackboard: UIColor.white.withAlphaComponent(0.08)
+            }
+        }
+
+        var iconName: String {
+            switch self {
+            case .white: "rectangle"
+            case .grid: "grid"
+            case .dots: "circle.grid.3x3"
+            case .blackboard: "rectangle.fill"
+            }
+        }
+    }
 
     // Drawing tools
     var selectedTool: DrawingTool = .pen

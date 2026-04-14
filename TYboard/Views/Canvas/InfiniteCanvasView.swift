@@ -11,6 +11,7 @@ struct InfiniteCanvasView: UIViewRepresentable {
 
     func updateUIView(_ uiView: InfiniteCanvasUIView, context: Context) {
         uiView.updateTool(state.currentPKTool)
+        uiView.updateBackground(state.canvasBackground)
     }
 }
 
@@ -18,6 +19,8 @@ final class InfiniteCanvasUIView: UIView {
     private let scrollView = UIScrollView()
     private let canvasView = PKCanvasView()
     private let state: CanvasState
+    private var gridLayer: GridLayer?
+    private var containerView: UIView?
 
     init(state: CanvasState) {
         self.state = state
@@ -61,35 +64,42 @@ final class InfiniteCanvasUIView: UIView {
         canvasView.delegate = self
 
         // Use a container for the infinite canvas
-        let containerView = UIView()
-        containerView.translatesAutoresizingMaskIntoConstraints = false
-        containerView.backgroundColor = UIColor.systemBackground
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.backgroundColor = state.canvasBackground.bgColor
+        self.containerView = container
 
         // Add grid pattern
-        let gridLayer = GridLayer()
-        gridLayer.frame = CGRect(origin: .zero, size: state.canvasSize)
-        containerView.layer.addSublayer(gridLayer)
+        let grid = GridLayer(background: state.canvasBackground)
+        grid.frame = CGRect(origin: .zero, size: state.canvasSize)
+        container.layer.addSublayer(grid)
+        self.gridLayer = grid
 
-        scrollView.addSubview(containerView)
-        containerView.addSubview(canvasView)
+        scrollView.addSubview(container)
+        container.addSubview(canvasView)
 
         NSLayoutConstraint.activate([
-            containerView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-            containerView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-            containerView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-            containerView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-            containerView.widthAnchor.constraint(equalToConstant: state.canvasSize.width),
-            containerView.heightAnchor.constraint(equalToConstant: state.canvasSize.height),
+            container.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            container.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            container.widthAnchor.constraint(equalToConstant: state.canvasSize.width),
+            container.heightAnchor.constraint(equalToConstant: state.canvasSize.height),
 
-            canvasView.topAnchor.constraint(equalTo: containerView.topAnchor),
-            canvasView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            canvasView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            canvasView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+            canvasView.topAnchor.constraint(equalTo: container.topAnchor),
+            canvasView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            canvasView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            canvasView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
     }
 
     func updateTool(_ tool: PKTool) {
         canvasView.tool = tool
+    }
+
+    func updateBackground(_ background: CanvasState.CanvasBackground) {
+        containerView?.backgroundColor = background.bgColor
+        gridLayer?.updateBackground(background)
     }
 
     override func layoutSubviews() {
@@ -128,45 +138,84 @@ extension InfiniteCanvasUIView: PKCanvasViewDelegate {
 // MARK: - Grid Pattern Layer
 final class GridLayer: CALayer {
     private let gridSpacing: CGFloat = 40
-    private let gridColor = UIColor.separator.withAlphaComponent(0.3)
+    private var background: CanvasState.CanvasBackground
 
-    override func draw(in ctx: CGContext) {
-        ctx.setStrokeColor(gridColor.cgColor)
-        ctx.setLineWidth(0.5)
-
-        let width = bounds.width
-        let height = bounds.height
-
-        // Vertical lines
-        var x: CGFloat = 0
-        while x <= width {
-            ctx.move(to: CGPoint(x: x, y: 0))
-            ctx.addLine(to: CGPoint(x: x, y: height))
-            x += gridSpacing
-        }
-
-        // Horizontal lines
-        var y: CGFloat = 0
-        while y <= height {
-            ctx.move(to: CGPoint(x: 0, y: y))
-            ctx.addLine(to: CGPoint(x: width, y: y))
-            y += gridSpacing
-        }
-
-        ctx.strokePath()
-    }
-
-    override init() {
+    init(background: CanvasState.CanvasBackground = .grid) {
+        self.background = background
         super.init()
         setNeedsDisplay()
     }
 
     override init(layer: Any) {
+        self.background = .grid
         super.init(layer: layer)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func updateBackground(_ bg: CanvasState.CanvasBackground) {
+        self.background = bg
+        setNeedsDisplay()
+    }
+
+    override func draw(in ctx: CGContext) {
+        let color = background.lineColor
+        let width = bounds.width
+        let height = bounds.height
+
+        switch background {
+        case .white:
+            break // No pattern
+
+        case .grid:
+            ctx.setStrokeColor(color.cgColor)
+            ctx.setLineWidth(0.5)
+            var x: CGFloat = 0
+            while x <= width {
+                ctx.move(to: CGPoint(x: x, y: 0))
+                ctx.addLine(to: CGPoint(x: x, y: height))
+                x += gridSpacing
+            }
+            var y: CGFloat = 0
+            while y <= height {
+                ctx.move(to: CGPoint(x: 0, y: y))
+                ctx.addLine(to: CGPoint(x: width, y: y))
+                y += gridSpacing
+            }
+            ctx.strokePath()
+
+        case .dots:
+            ctx.setFillColor(color.cgColor)
+            let dotRadius: CGFloat = 1.5
+            var x: CGFloat = 0
+            while x <= width {
+                var y: CGFloat = 0
+                while y <= height {
+                    ctx.fillEllipse(in: CGRect(x: x - dotRadius, y: y - dotRadius, width: dotRadius * 2, height: dotRadius * 2))
+                    y += gridSpacing
+                }
+                x += gridSpacing
+            }
+
+        case .blackboard:
+            ctx.setStrokeColor(color.cgColor)
+            ctx.setLineWidth(0.5)
+            var x: CGFloat = 0
+            while x <= width {
+                ctx.move(to: CGPoint(x: x, y: 0))
+                ctx.addLine(to: CGPoint(x: x, y: height))
+                x += gridSpacing
+            }
+            var y: CGFloat = 0
+            while y <= height {
+                ctx.move(to: CGPoint(x: 0, y: y))
+                ctx.addLine(to: CGPoint(x: width, y: y))
+                y += gridSpacing
+            }
+            ctx.strokePath()
+        }
     }
 }
