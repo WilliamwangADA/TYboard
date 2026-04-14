@@ -1,9 +1,16 @@
 import SwiftUI
 
+enum PreviewMode: String, CaseIterable {
+    case web = "Web应用"
+    case ppt = "PPT"
+}
+
 struct MainView: View {
     @State private var canvasState = CanvasState()
     @State private var chatState = ChatState()
     @State private var generationEngine = GenerationEngine()
+    @State private var pptGenerator = PPTGenerator()
+    @State private var previewMode: PreviewMode = .web
 
     var body: some View {
         NavigationStack {
@@ -25,10 +32,27 @@ struct MainView: View {
                     if canvasState.isPreviewVisible {
                         Divider()
 
-                        PreviewPanel(
-                            canvasState: canvasState,
-                            generationEngine: generationEngine
-                        )
+                        VStack(spacing: 0) {
+                            // Mode selector
+                            Picker("", selection: $previewMode) {
+                                ForEach(PreviewMode.allCases, id: \.self) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+
+                            switch previewMode {
+                            case .web:
+                                PreviewPanel(
+                                    canvasState: canvasState,
+                                    generationEngine: generationEngine
+                                )
+                            case .ppt:
+                                PPTPreviewPanel(generator: pptGenerator)
+                            }
+                        }
                         .frame(width: previewWidth(in: geometry))
                         .transition(.move(edge: .trailing))
                     }
@@ -42,13 +66,23 @@ struct MainView: View {
                 }
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    // Generate button
+                    // Generate Web
                     Button {
-                        triggerGeneration()
+                        previewMode = .web
+                        triggerWebGeneration()
                     } label: {
-                        Label("生成", systemImage: "wand.and.stars")
+                        Label("生成Web", systemImage: "wand.and.stars")
                     }
                     .disabled(generationEngine.isGenerating)
+
+                    // Generate PPT
+                    Button {
+                        previewMode = .ppt
+                        triggerPPTGeneration()
+                    } label: {
+                        Label("生成PPT", systemImage: "rectangle.on.rectangle.angled")
+                    }
+                    .disabled(pptGenerator.isGenerating)
 
                     Button {
                         chatState.showAPIKeyAlert = true
@@ -79,7 +113,6 @@ struct MainView: View {
             } message: {
                 Text("请输入你的Claude API Key")
             }
-            // Auto-detect generated code in chat responses
             .onChange(of: chatState.messages.count) {
                 checkForGeneratedCode()
             }
@@ -97,8 +130,7 @@ struct MainView: View {
         geometry.size.width * canvasState.previewWidthRatio
     }
 
-    /// Trigger generation from current canvas + latest chat
-    private func triggerGeneration() {
+    private func triggerWebGeneration() {
         let latestPrompt = chatState.messages
             .last(where: { $0.role == .user })?.content ?? ""
 
@@ -108,14 +140,24 @@ struct MainView: View {
                 drawing: canvasState.drawing,
                 previousHTML: generationEngine.generatedHTML
             )
-            // Auto-show preview
             if !canvasState.isPreviewVisible {
                 canvasState.togglePreview()
             }
         }
     }
 
-    /// Check if the latest AI response contains HTML code
+    private func triggerPPTGeneration() {
+        let latestPrompt = chatState.messages
+            .last(where: { $0.role == .user })?.content ?? ""
+
+        Task {
+            await pptGenerator.generate(description: latestPrompt)
+            if !canvasState.isPreviewVisible {
+                canvasState.togglePreview()
+            }
+        }
+    }
+
     private func checkForGeneratedCode() {
         guard let lastMessage = chatState.messages.last,
               lastMessage.role == .assistant,
