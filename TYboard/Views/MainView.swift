@@ -11,8 +11,11 @@ struct MainView: View {
     @State private var generationEngine = GenerationEngine()
     @State private var pptGenerator = PPTGenerator()
     @State private var assetStore = AssetStore()
+    @State private var snapshotManager = SnapshotManager()
+    @State private var habitTracker = UserHabitTracker()
     @State private var previewMode: PreviewMode = .web
     @State private var showAssetLibrary = false
+    @State private var showTemplatePicker = false
 
     var body: some View {
         NavigationStack {
@@ -65,6 +68,25 @@ struct MainView: View {
                 ToolbarItemGroup(placement: .topBarLeading) {
                     Text("TYboard")
                         .font(.headline)
+
+                    // Template picker
+                    Button {
+                        showTemplatePicker = true
+                    } label: {
+                        Image(systemName: "doc.badge.plus")
+                    }
+
+                    // Snapshot
+                    Button {
+                        snapshotManager.takeSnapshot(
+                            name: "快照 \(Date().formatted(.dateTime.hour().minute()))",
+                            drawing: canvasState.drawing,
+                            generatedHTML: generationEngine.generatedHTML,
+                            chatSummary: chatState.messages.suffix(3).map(\.content).joined(separator: "\n")
+                        )
+                    } label: {
+                        Image(systemName: "camera.circle")
+                    }
                 }
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -138,6 +160,16 @@ struct MainView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("完成") { showAssetLibrary = false }
                         }
+                    }
+                }
+            }
+            .sheet(isPresented: $showTemplatePicker) {
+                TemplatePickerView { template in
+                    chatState.inputText = template.defaultPrompt
+                    if template.category == .ppt {
+                        previewMode = .ppt
+                    } else {
+                        previewMode = .web
                     }
                 }
             }
