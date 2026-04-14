@@ -10,7 +10,9 @@ struct MainView: View {
     @State private var chatState = ChatState()
     @State private var generationEngine = GenerationEngine()
     @State private var pptGenerator = PPTGenerator()
+    @State private var assetStore = AssetStore()
     @State private var previewMode: PreviewMode = .web
+    @State private var showAssetLibrary = false
 
     var body: some View {
         NavigationStack {
@@ -84,6 +86,13 @@ struct MainView: View {
                     }
                     .disabled(pptGenerator.isGenerating)
 
+                    // Asset library
+                    Button {
+                        showAssetLibrary.toggle()
+                    } label: {
+                        Image(systemName: "tray.2")
+                    }
+
                     Button {
                         chatState.showAPIKeyAlert = true
                     } label: {
@@ -115,6 +124,22 @@ struct MainView: View {
             }
             .onChange(of: chatState.messages.count) {
                 checkForGeneratedCode()
+            }
+            .sheet(isPresented: $showAssetLibrary) {
+                NavigationStack {
+                    AssetLibraryView(store: assetStore) { asset in
+                        // Send asset to chat as context
+                        if let imageData = assetStore.imageData(for: asset) {
+                            chatState.pendingImageData = imageData
+                        }
+                        showAssetLibrary = false
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("完成") { showAssetLibrary = false }
+                        }
+                    }
+                }
             }
         }
     }
