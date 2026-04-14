@@ -10,7 +10,7 @@ struct InfiniteCanvasView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: InfiniteCanvasUIView, context: Context) {
-        // State updates handled via observation in UIView
+        uiView.updateTool(state.currentPKTool)
     }
 }
 
@@ -53,7 +53,7 @@ final class InfiniteCanvasUIView: UIView {
 
     private func setupCanvasView() {
         canvasView.translatesAutoresizingMaskIntoConstraints = false
-        canvasView.drawingPolicy = .pencilOnly
+        canvasView.drawingPolicy = .anyInput
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         canvasView.tool = PKInkingTool(.pen, color: .label, width: 3)
@@ -86,6 +86,10 @@ final class InfiniteCanvasUIView: UIView {
             canvasView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
             canvasView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
         ])
+    }
+
+    func updateTool(_ tool: PKTool) {
+        canvasView.tool = tool
     }
 
     override func layoutSubviews() {

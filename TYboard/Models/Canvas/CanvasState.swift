@@ -9,6 +9,16 @@ final class CanvasState {
     var isPreviewVisible: Bool = true
     var previewWidthRatio: CGFloat = 1.0 / 3.0
 
+    // Drawing tools
+    var selectedTool: DrawingTool = .pen
+    var selectedColor: Color = .black
+    var lineWidth: CGFloat = 3.0
+
+    // Computed PKTool for the canvas
+    var currentPKTool: PKTool {
+        selectedTool.pkTool(color: UIColor(selectedColor), width: lineWidth)
+    }
+
     // Canvas content size (virtual infinite canvas)
     let canvasSize = CGSize(width: 10000, height: 10000)
     let canvasCenter = CGPoint(x: 5000, y: 5000)

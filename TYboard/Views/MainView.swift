@@ -22,14 +22,27 @@ struct MainView: View {
             GeometryReader { geometry in
                 HStack(spacing: 0) {
                     // Canvas area
-                    ZStack(alignment: .bottom) {
+                    ZStack {
                         InfiniteCanvasView(state: canvasState)
 
-                        ChatInputBar(state: chatState) {
-                            chatState.attachCanvasSnapshot(canvasState.drawing)
+                        VStack {
+                            // Drawing toolbar at top
+                            DrawingToolBar(
+                                selectedTool: $canvasState.selectedTool,
+                                selectedColor: $canvasState.selectedColor,
+                                lineWidth: $canvasState.lineWidth
+                            )
+                            .padding(.top, 8)
+
+                            Spacer()
+
+                            // Chat input at bottom
+                            ChatInputBar(state: chatState) {
+                                chatState.attachCanvasSnapshot(canvasState.drawing)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
                     }
                     .frame(width: canvasWidth(in: geometry))
 
